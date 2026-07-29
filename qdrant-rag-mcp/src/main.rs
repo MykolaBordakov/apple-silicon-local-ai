@@ -13,7 +13,6 @@ use config::Config;
 use embed::EmbedEngine;
 use llm::LlmClient;
 use mcp::{handle_request, JSONRPCRequest, ServerState};
-use qdrant::QdrantManager;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -24,16 +23,15 @@ async fn main() -> Result<()> {
     tracing::info!("Starting qdrant-rag-mcp Rust server v0.1.0...");
 
     let cfg = Config::from_env();
-    tracing::info!("Connecting to Qdrant at {}", cfg.qdrant_url);
+    tracing::info!("Configured Qdrant target at {}", cfg.qdrant_url);
 
     let embed = EmbedEngine::new()?;
-    let qdrant = QdrantManager::new(&cfg.qdrant_url, &cfg.qdrant_api_key).await?;
     let llm = LlmClient::new(cfg.llm_url.clone());
 
     let state = Arc::new(Mutex::new(ServerState {
         config: cfg,
         embed,
-        qdrant,
+        qdrant: None,
         llm,
     }));
 

@@ -18,6 +18,8 @@ impl QdrantManager {
         };
         let client = Qdrant::from_url(&grpc_url)
             .api_key(api_key)
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .timeout(std::time::Duration::from_secs(30))
             .build()
             .context("Failed to connect to Qdrant server")?;
         Ok(Self { client })

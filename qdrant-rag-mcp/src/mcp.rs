@@ -37,8 +37,19 @@ pub struct RPCError {
 pub struct ServerState {
     pub config: Config,
     pub embed: EmbedEngine,
-    pub qdrant: QdrantManager,
+    pub qdrant: Option<QdrantManager>,
     pub llm: LlmClient,
+}
+
+impl ServerState {
+    pub async fn get_qdrant(&mut self) -> Result<&QdrantManager> {
+        if self.qdrant.is_none() {
+            tracing::info!("Lazily connecting to Qdrant at {}...", self.config.qdrant_url);
+            let mgr = QdrantManager::new(&self.config.qdrant_url, &self.config.qdrant_api_key).await?;
+            self.qdrant = Some(mgr);
+        }
+        Ok(self.qdrant.as_ref().unwrap())
+    }
 }
 
 pub async fn handle_request(req: JSONRPCRequest, state: Arc<Mutex<ServerState>>) -> Option<JSONRPCResponse> {
@@ -166,32 +177,36 @@ pub async fn handle_request(req: JSONRPCRequest, state: Arc<Mutex<ServerState>>)
 }
 
 async fn call_tool(name: &str, args: &Value, state: Arc<Mutex<ServerState>>) -> Result<String> {
-    let st = state.lock().await;
+    let mut st = state.lock().await;
 
     match name {
         "qdrant_list_collections" => {
-            let collections = st.qdrant.list_collections().await?;
+            let qdrant = st.get_qdrant().await?;
+            let collections = qdrant.list_collections().await?;
             Ok(serde_json::to_string_pretty(&collections)?)
         }
         "qdrant_search" => {
             let query = args["query"].as_str().ok_or_else(|| anyhow::anyhow!("'query' is required"))?;
             let collection = args["collection_name"]
                 .as_str()
-                .unwrap_or(&st.config.default_collection);
+                .unwrap_or(&st.config.default_collection)
+                .to_string();
             let limit = args["limit"].as_u64().unwrap_or(5);
 
             let vectors = st.embed.embed_texts(&[query.to_string()])?;
             let vector = vectors[0].clone();
 
-            st.qdrant.ensure_collection(collection, 384).await?;
-            let results = st.qdrant.search(collection, vector, limit).await?;
+            let qdrant = st.get_qdrant().await?;
+            qdrant.ensure_collection(&collection, 384).await?;
+            let results = qdrant.search(&collection, vector, limit).await?;
             Ok(serde_json::to_string_pretty(&results)?)
         }
         "qdrant_index_path" => {
             let path_or_text = args["path"].as_str().ok_or_else(|| anyhow::anyhow!("'path' is required"))?;
             let collection = args["collection_name"]
                 .as_str()
-                .unwrap_or(&st.config.default_collection);
+                .unwrap_or(&st.config.default_collection)
+                .to_string();
             let chunk_size = args["chunk_size"].as_u64().unwrap_or(500) as usize;
 
             let content = if std::path::Path::new(path_or_text).exists() {
@@ -205,7 +220,6 @@ async fn call_tool(name: &str, args: &Value, state: Arc<Mutex<ServerState>>) -> 
                 return Ok("No text content to index.".to_string());
             }
 
-            st.qdrant.ensure_collection(collection, 384).await?;
             let vectors = st.embed.embed_texts(&chunks)?;
 
             let mut points = Vec::new();
@@ -221,20 +235,24 @@ async fn call_tool(name: &str, args: &Value, state: Arc<Mutex<ServerState>>) -> 
                 points.push(PointStruct::new(point_id, vec, payload));
             }
 
-            st.qdrant.upsert_points(collection, points).await?;
+            let qdrant = st.get_qdrant().await?;
+            qdrant.ensure_collection(&collection, 384).await?;
+            qdrant.upsert_points(&collection, points).await?;
             Ok(format!("Indexed content into collection '{}' successfully.", collection))
         }
         "qdrant_rag_ask" => {
             let query = args["query"].as_str().ok_or_else(|| anyhow::anyhow!("'query' is required"))?;
             let collection = args["collection_name"]
                 .as_str()
-                .unwrap_or(&st.config.default_collection);
+                .unwrap_or(&st.config.default_collection)
+                .to_string();
 
             let vectors = st.embed.embed_texts(&[query.to_string()])?;
             let vector = vectors[0].clone();
 
-            st.qdrant.ensure_collection(collection, 384).await?;
-            let results = st.qdrant.search(collection, vector, 5).await?;
+            let qdrant = st.get_qdrant().await?;
+            qdrant.ensure_collection(&collection, 384).await?;
+            let results = qdrant.search(&collection, vector, 5).await?;
 
             let mut context_str = String::new();
             for res in &results {
