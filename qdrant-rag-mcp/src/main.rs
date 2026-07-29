@@ -1,5 +1,6 @@
 mod config;
 mod embed;
+mod llm;
 mod qdrant;
 
 use anyhow::Result;
