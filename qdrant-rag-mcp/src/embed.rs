@@ -7,9 +7,22 @@ pub struct EmbedEngine {
 
 impl EmbedEngine {
     pub fn new() -> Result<Self> {
+        let cache_dir = std::env::var("FASTEMBED_CACHE_DIR")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|_| {
+                let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+                std::path::PathBuf::from(home).join(".cache").join("fastembed")
+            });
+
+        if let Err(_) = std::fs::create_dir_all(&cache_dir) {
+            let tmp_dir = std::path::PathBuf::from("/tmp/fastembed_cache");
+            let _ = std::fs::create_dir_all(&tmp_dir);
+        }
+
         let model = TextEmbedding::try_new(
             InitOptions::new(EmbeddingModel::BGESmallENV15)
-                .with_show_download_progress(false),
+                .with_show_download_progress(false)
+                .with_cache_dir(cache_dir),
         )
         .context("Failed to initialize FastEmbed BGESmallENV15 model")?;
 
