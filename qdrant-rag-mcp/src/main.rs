@@ -1,4 +1,5 @@
 mod config;
+mod embed;
 
 use anyhow::Result;
 use config::Config;
