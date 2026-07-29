@@ -11,7 +11,12 @@ pub struct QdrantManager {
 
 impl QdrantManager {
     pub async fn new(url: &str, api_key: &str) -> Result<Self> {
-        let client = Qdrant::from_url(url)
+        let grpc_url = if url.contains(":6333") {
+            url.replace(":6333", ":6334")
+        } else {
+            url.to_string()
+        };
+        let client = Qdrant::from_url(&grpc_url)
             .api_key(api_key)
             .build()
             .context("Failed to connect to Qdrant server")?;
