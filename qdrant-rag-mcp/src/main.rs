@@ -1,5 +1,6 @@
 mod config;
 mod embed;
+mod qdrant;
 
 use anyhow::Result;
 use config::Config;
