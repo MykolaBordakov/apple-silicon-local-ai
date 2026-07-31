@@ -236,8 +236,32 @@ async fn call_tool(name: &str, args: &Value, state: Arc<Mutex<ServerState>>) -> 
 
             let git_repo = args["git_repo"]
                 .as_str()
-                .unwrap_or("")
-                .to_string();
+                .filter(|s| !s.trim().is_empty())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| {
+                    let dir = if std::path::Path::new(path_or_text).is_file() {
+                        std::path::Path::new(path_or_text).parent()
+                    } else {
+                        Some(std::path::Path::new(path_or_text))
+                    };
+                    if let Some(d) = dir {
+                        if let Ok(out) = std::process::Command::new("git")
+                            .args(["remote", "get-url", "origin"])
+                            .current_dir(d)
+                            .output()
+                        {
+                            if out.status.success() {
+                                String::from_utf8_lossy(&out.stdout).trim().to_string()
+                            } else {
+                                "".to_string()
+                            }
+                        } else {
+                            "".to_string()
+                        }
+                    } else {
+                        "".to_string()
+                    }
+                });
 
             let relative_path = {
                 let path = std::path::Path::new(path_or_text);
