@@ -8,7 +8,7 @@ description: "Scan and bulk-index an entire local repository into Qdrant vector 
 This skill automates scanning and bulk-indexing source code files from a workspace into the Qdrant vector database via `qdrant-rag-mcp`.
 
 ## Executable Location
-- **Rust MCP Server**: `/Users/Shared/LLM-Mykola/qdrant-rag-mcp/target/release/qdrant-rag-mcp`
+- **Rust MCP Server**: `./qdrant-rag-mcp/target/release/qdrant-rag-mcp`
 
 ## Workflow
 

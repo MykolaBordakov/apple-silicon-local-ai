@@ -8,7 +8,7 @@ description: "Use the local MLX Devstral-Small-2-24B model via local-llm-mcp Go 
 This skill provides instructions for using the local `Devstral-Small-2-24B` LLM running on Apple Silicon via `local-llm-mcp`.
 
 ## MCP Executable Location
-- **Executable**: `/Users/Shared/LLM-Mykola/mcp-server-go/local-llm-mcp`
+- **Executable**: `./mcp-server-go/local-llm-mcp`
 - **Build command**: `cd mcp-server-go && go build -o local-llm-mcp main.go`
 - **Model Server URL**: `http://127.0.0.1:8080/v1/chat/completions`
 - **Health Check**: `http://127.0.0.1:8080/health`
@@ -35,11 +35,11 @@ Quickly summarizes large text or log output using local Devstral-24B model with 
 ## Startup Script
 If the local model server is offline, start it with:
 ```bash
-/Users/Shared/LLM-Mykola/run_devstral.sh
+./run_devstral.sh
 ```
 
 ## CLI Terminal Chat
 For direct interactive chat with the model in terminal:
 ```bash
-cd /Users/Shared/LLM-Mykola/cli-chat && ./cli-chat
+cd ./cli-chat && ./cli-chat
 ```

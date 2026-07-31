@@ -8,7 +8,7 @@ description: "Perform zero-token-cost local code reviews, security audits, and p
 This skill uses the local `Devstral-Small-2-24B` model to perform deep, privacy-preserving, zero-cost code reviews.
 
 ## Executable Location
-- **Go MCP Server**: `/Users/Shared/LLM-Mykola/mcp-server-go/local-llm-mcp`
+- **Go MCP Server**: `./mcp-server-go/local-llm-mcp`
 
 ## Workflow
 

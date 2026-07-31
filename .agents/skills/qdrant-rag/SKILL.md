@@ -8,7 +8,7 @@ description: "Use Qdrant vector database (at 192.168.0.107:6333 or localhost) wi
 This skill provides instructions for using the high-performance Rust MCP server `qdrant-rag-mcp` for codebase vectorization and Retrieval-Augmented Generation (RAG).
 
 ## Executable Location
-- **Executable**: `/Users/Shared/LLM-Mykola/qdrant-rag-mcp/target/release/qdrant-rag-mcp`
+- **Executable**: `./qdrant-rag-mcp/target/release/qdrant-rag-mcp`
 - **Build command**: `cd qdrant-rag-mcp && cargo build --release`
 
 ## Key Architecture & Features

@@ -117,13 +117,13 @@ LLM-Mykola/
 {
   "mcpServers": {
     "local-llm": {
-      "command": "/Users/Shared/LLM-Mykola/mcp-server-go/local-llm-mcp",
+      "command": "<PATH_TO_REPO>/mcp-server-go/local-llm-mcp",
       "env": {
         "LLM_SERVER_URL": "http://127.0.0.1:8080/v1/chat/completions"
       }
     },
     "qdrant-rag": {
-      "command": "/Users/Shared/LLM-Mykola/qdrant-rag-mcp/target/release/qdrant-rag-mcp",
+      "command": "<PATH_TO_REPO>/qdrant-rag-mcp/target/release/qdrant-rag-mcp",
       "env": {
         "QDRANT_URL": "http://192.168.0.107:6333",
         "QDRANT_API_KEY": "your-api-key",
