@@ -1,0 +1,21 @@
+# Python & Virtual environment
+.venv/
+__pycache__/
+*.pyc
+
+# Local LLM Models (14GB+ weight binaries downloaded via HF CLI)
+models/
+.fastembed_cache/
+
+# Rust build target directory
+qdrant-rag-mcp/target/
+
+# Go compiled binaries
+mcp-server-go/local-llm-mcp
+cli-chat/cli-chat
+chat
+server
+ssl_checker
+
+# macOS system files
+.DS_Store

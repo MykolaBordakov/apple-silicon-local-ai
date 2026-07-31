@@ -8,7 +8,7 @@ use qdrant_client::qdrant::PointStruct;
 use crate::config::Config;
 use crate::embed::EmbedEngine;
 use crate::llm::LlmClient;
-use crate::qdrant::{chunk_text, QdrantManager};
+use crate::qdrant::{chunk_text_with_lines, QdrantManager};
 
 #[derive(Deserialize, Debug)]
 pub struct JSONRPCRequest {
@@ -85,6 +85,8 @@ pub async fn handle_request(req: JSONRPCRequest, state: Arc<Mutex<ServerState>>)
                             "properties": {
                                 "path": { "type": "string", "description": "File path or content to index" },
                                 "collection_name": { "type": "string", "description": "Optional Qdrant collection name (default: codebase_knowledge)" },
+                                "project_name": { "type": "string", "description": "Optional project/repository name" },
+                                "git_repo": { "type": "string", "description": "Optional Git remote URL" },
                                 "chunk_size": { "type": "integer", "description": "Chunk character length (default 500)" }
                             },
                             "required": ["path"]
@@ -215,22 +217,72 @@ async fn call_tool(name: &str, args: &Value, state: Arc<Mutex<ServerState>>) -> 
                 path_or_text.to_string()
             };
 
-            let chunks = chunk_text(&content, chunk_size, 100);
+            let project_name = args["project_name"]
+                .as_str()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| {
+                    let path = std::path::Path::new(path_or_text);
+                    if path.is_absolute() {
+                        path.components()
+                            .rev()
+                            .nth(1)
+                            .and_then(|c| c.as_os_str().to_str())
+                            .unwrap_or("unknown_project")
+                            .to_string()
+                    } else {
+                        "unknown_project".to_string()
+                    }
+                });
+
+            let git_repo = args["git_repo"]
+                .as_str()
+                .unwrap_or("")
+                .to_string();
+
+            let relative_path = {
+                let path = std::path::Path::new(path_or_text);
+                if path.is_absolute() {
+                    let components: Vec<_> = path.components().map(|c| c.as_os_str().to_str().unwrap_or("")).collect();
+                    if components.len() >= 2 {
+                        components[components.len()-2..].join("/")
+                    } else {
+                        path_or_text.to_string()
+                    }
+                } else {
+                    path_or_text.to_string()
+                }
+            };
+
+            let ext = std::path::Path::new(path_or_text)
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("txt");
+
+            let chunks = chunk_text_with_lines(&content, chunk_size, 100);
             if chunks.is_empty() {
                 return Ok("No text content to index.".to_string());
             }
 
-            let vectors = st.embed.embed_texts(&chunks)?;
+            let texts: Vec<String> = chunks.iter().map(|c| c.content.clone()).collect();
+            let vectors = st.embed.embed_texts(&texts)?;
 
             let mut points = Vec::new();
             for (idx, (chunk, vec)) in chunks.into_iter().zip(vectors.into_iter()).enumerate() {
-                let point_id = (std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)?
-                    .as_nanos() + idx as u128) as u64;
+                use std::hash::{Hash, Hasher};
+                let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                format!("{}:{}", path_or_text, idx).hash(&mut hasher);
+                let point_id = hasher.finish();
 
                 let mut payload = std::collections::HashMap::new();
-                payload.insert("content".to_string(), json!(chunk));
+                payload.insert("content".to_string(), json!(chunk.content));
                 payload.insert("source".to_string(), json!(path_or_text));
+                payload.insert("file_path".to_string(), json!(path_or_text));
+                payload.insert("relative_path".to_string(), json!(relative_path));
+                payload.insert("language".to_string(), json!(ext));
+                payload.insert("project_name".to_string(), json!(project_name));
+                payload.insert("git_repo".to_string(), json!(git_repo));
+                payload.insert("line_start".to_string(), json!(chunk.line_start));
+                payload.insert("line_end".to_string(), json!(chunk.line_end));
 
                 points.push(PointStruct::new(point_id, vec, payload));
             }
@@ -256,8 +308,32 @@ async fn call_tool(name: &str, args: &Value, state: Arc<Mutex<ServerState>>) -> 
 
             let mut context_str = String::new();
             for res in &results {
-                if let Some(payload) = res["payload"]["content"]["stringValue"].as_str() {
-                    context_str.push_str(payload);
+                if let Some(payload) = res["payload"].as_object() {
+                    let content_text = payload.get("content")
+                        .or_else(|| payload.get("text"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+
+                    let file_path = payload.get("file_path")
+                        .or_else(|| payload.get("source"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown");
+
+                    let project = payload.get("project_name").and_then(|v| v.as_str()).unwrap_or("");
+                    let git = payload.get("git_repo").and_then(|v| v.as_str()).unwrap_or("");
+                    let l_start = payload.get("line_start").and_then(|v| v.as_u64());
+                    let l_end = payload.get("line_end").and_then(|v| v.as_u64());
+
+                    let mut header = format!("### Project: {} | File: file://{}", project, file_path);
+                    if let (Some(s), Some(e)) = (l_start, l_end) {
+                        header.push_str(&format!("#L{}-L{}", s, e));
+                    }
+                    if !git.is_empty() {
+                        header.push_str(&format!(" (git: {})", git));
+                    }
+                    header.push('\n');
+                    context_str.push_str(&header);
+                    context_str.push_str(content_text);
                     context_str.push_str("\n---\n");
                 }
             }
