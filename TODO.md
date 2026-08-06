@@ -17,16 +17,16 @@
 ---
 
 ### 2. 💬 Chat History Indexing & Dedicated Collection (`chat_history`)
-- [ ] Create an isolated Qdrant collection `chat_history` (separated from `codebase_knowledge` to prevent vector noise).
-- [ ] Build a transcript log parser for Antigravity JSONL session logs (`transcript.jsonl`).
-- [ ] Add `qdrant_index_chat_history` tool to `qdrant-rag-mcp` for indexing dialogue sessions.
-- [ ] Allow searching past architectural discussions without polluting code RAG results.
+- [x] Create an isolated Qdrant collection `chat_history` (separated from `codebase_knowledge` to prevent vector noise).
+- [x] Build a transcript log parser for Antigravity JSONL session logs (`transcript.jsonl`).
+- [x] Add `qdrant_index_chat_history` tool to `qdrant-rag-mcp` for indexing dialogue sessions.
+- [x] Allow searching past architectural discussions without polluting code RAG results.
 
 ---
 
 ### 3. 🚀 Go CLI Chat Native Tool Calling Loop
-- [ ] Add tool execution loop into `cli-chat/main.go`.
-- [ ] Enable `cli-chat` to call local MCP tools (`qdrant_search`, `read_file`, `exec_cmd`) directly via Devstral-24B for 100% zero-cloud-token local development.
+- [x] Add tool execution loop into `cli-chat/main.go`.
+- [x] Enable `cli-chat` to call local MCP tools (`qdrant_search`, `read_file`, `exec_cmd`) directly via Devstral-24B for 100% zero-cloud-token local development.
 
 ---
 

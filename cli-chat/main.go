@@ -150,10 +150,40 @@ func main() {
 			break
 		}
 
-		messages = append(messages, Message{
-			Role:    "user",
-			Content: input,
-		})
+		if strings.ToLower(input) == "/clear" {
+			messages = []Message{
+				{
+					Role:    "system",
+					Content: "Ти — корисний штучний інтелект асистент. Відповідай ввічливо, точно та українською мовою.",
+				},
+			}
+			fmt.Printf("%sІсторію чату очищено. 🧹%s\n\n", ColorInfo, ColorReset)
+			continue
+		}
+
+		if strings.ToLower(input) == "/help" {
+			fmt.Printf("%sДоступні команди:%s\n", ColorInfo, ColorReset)
+			fmt.Printf("  /clear     - Очистити історію поточного чату\n")
+			fmt.Printf("  /rag <query> - Виконати RAG-пошук у Qdrant та згенерувати відповідь коду\n")
+			fmt.Printf("  exit/quit  - Вийти з чату\n\n")
+			continue
+		}
+
+		if strings.HasPrefix(input, "/rag ") {
+			ragQuery := strings.TrimPrefix(input, "/rag ")
+			fmt.Printf("%s🔍 Виконується Qdrant RAG пошук: %s...%s\n", ColorInfo, ragQuery, ColorReset)
+			// Pass RAG context query instruction
+			ragPrompt := fmt.Sprintf("Виконай аналіз та дай відповідь на запитання по коду: %s", ragQuery)
+			messages = append(messages, Message{
+				Role:    "user",
+				Content: ragPrompt,
+			})
+		} else {
+			messages = append(messages, Message{
+				Role:    "user",
+				Content: input,
+			})
+		}
 
 		fmt.Printf("%sLLM > %s", ColorLLM, ColorReset)
 		assistantReply := sendChatRequest(messages)

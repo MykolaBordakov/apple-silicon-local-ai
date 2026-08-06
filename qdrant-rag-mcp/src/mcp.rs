@@ -124,6 +124,19 @@ pub async fn handle_request(req: JSONRPCRequest, state: Arc<Mutex<ServerState>>)
                             "type": "object",
                             "properties": {}
                         }
+                    },
+                    {
+                        "name": "qdrant_index_chat_history",
+                        "description": "Index a conversation transcript JSONL log into dedicated Qdrant collection 'chat_history'.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "transcript_path": { "type": "string", "description": "Absolute path to transcript.jsonl log file" },
+                                "session_id": { "type": "string", "description": "Optional conversation session ID" },
+                                "collection_name": { "type": "string", "description": "Optional collection name (default: chat_history)" }
+                            },
+                            "required": ["transcript_path"]
+                        }
                     }
                 ]
             });
@@ -369,6 +382,81 @@ async fn call_tool(name: &str, args: &Value, state: Arc<Mutex<ServerState>>) -> 
 
             let answer = st.llm.ask(query, &system_prompt).await?;
             Ok(answer)
+        }
+        "qdrant_index_chat_history" => {
+            let transcript_path = args["transcript_path"]
+                .as_str()
+                .ok_or_else(|| anyhow::anyhow!("'transcript_path' is required"))?;
+            let collection = args["collection_name"]
+                .as_str()
+                .unwrap_or("chat_history")
+                .to_string();
+            let session_id = args["session_id"]
+                .as_str()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| {
+                    std::path::Path::new(transcript_path)
+                        .parent()
+                        .and_then(|p| p.file_name())
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("unknown_session")
+                        .to_string()
+                });
+
+            let log_text = tokio::fs::read_to_string(transcript_path).await?;
+            let mut entries = Vec::new();
+            let mut step_counter = 0u64;
+
+            for line in log_text.lines() {
+                if line.trim().is_empty() {
+                    continue;
+                }
+                if let Ok(val) = serde_json::from_str::<serde_json::Value>(line) {
+                    let step_type = val.get("type").and_then(|v| v.as_str()).unwrap_or("");
+                    let content = val.get("content").and_then(|v| v.as_str()).unwrap_or("");
+
+                    if (step_type == "USER_INPUT" || step_type == "PLANNER_RESPONSE") && !content.trim().is_empty() {
+                        step_counter += 1;
+                        let speaker = if step_type == "USER_INPUT" { "user" } else { "assistant" };
+                        let formatted_text = format!("[{}]: {}", speaker.to_uppercase(), content);
+                        entries.push((step_counter, speaker.to_string(), formatted_text));
+                    }
+                }
+            }
+
+            if entries.is_empty() {
+                return Ok("No chat history messages to index.".to_string());
+            }
+
+            let texts: Vec<String> = entries.iter().map(|(_, _, txt)| txt.clone()).collect();
+            let vectors = st.embed.embed_texts(&texts)?;
+
+            let mut points = Vec::new();
+            for ((step_idx, speaker, txt), vec) in entries.into_iter().zip(vectors.into_iter()) {
+                use std::hash::{Hash, Hasher};
+                let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                format!("chat:{}:{}", session_id, step_idx).hash(&mut hasher);
+                let point_id = hasher.finish();
+
+                let mut payload = std::collections::HashMap::new();
+                payload.insert("content".to_string(), json!(txt));
+                payload.insert("source".to_string(), json!(transcript_path));
+                payload.insert("session_id".to_string(), json!(session_id));
+                payload.insert("speaker".to_string(), json!(speaker));
+                payload.insert("step_index".to_string(), json!(step_idx));
+
+                points.push(PointStruct::new(point_id, vec, payload));
+            }
+
+            let count = points.len();
+            let qdrant = st.get_qdrant().await?;
+            qdrant.ensure_collection(&collection, 384).await?;
+            qdrant.upsert_points(&collection, points).await?;
+            Ok(format!(
+                "Indexed {} chat history messages into collection '{}' successfully.",
+                count,
+                collection
+            ))
         }
         _ => Err(anyhow::anyhow!("Unknown tool: {}", name)),
     }
