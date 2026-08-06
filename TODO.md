@@ -7,12 +7,12 @@
 ## 📌 Pending Tasks
 
 ### 1. 📚 Index ADR Docs & Sync RAG (Upon VPN Disconnect)
-- [ ] Connect to local Qdrant instance (`192.168.0.107:6333`).
-- [ ] Bulk-index new Architecture Decision Records:
+- [x] Connect to local Qdrant instance (`192.168.0.107:6333`).
+- [x] Bulk-index new Architecture Decision Records:
   - `docs/adr/0001-qdrant-deterministic-point-ids.md`
   - `docs/adr/0002-git-repo-and-project-name-metadata.md`
   - `docs/adr/0003-hybrid-ai-architecture-senior-cloud-middle-local.md`
-- [ ] Run `qdrant_search` verification to confirm clean payload retrieval.
+- [x] Run `qdrant_search` verification to confirm clean payload retrieval.
 
 ---
 
